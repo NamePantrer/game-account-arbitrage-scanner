@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arb Scanner — Neon Analytics</title>
+  <link rel="icon" href="/static/icons/favicon.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="bg-glow"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo-dot"></span>
+      <h1>ARB<span>SCANNER</span></h1>
+      <span class="badge" id="modeBadge">SCAN</span>
+      <span class="scan-status" id="scanStatus">сканирование...</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-refresh" id="refreshBtn"><span class="pulse"></span> Пересканировать</button>
+      <span class="clock" id="clock">--:--:--</span>
+    </div>
+  </header>
+
+  <aside class="sidebar">
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="advisor">🧠 Советник</button>
+      <button class="tab" data-tab="overview">Обзор</button>
+      <button class="tab" data-tab="risk">Риски</button>
+      <button class="tab" data-tab="market">Рынок</button>
+      <button class="tab" data-tab="strategies">Стратегии</button>
+      <button class="tab" data-tab="portfolio">Портфель</button>
+      <button class="tab" data-tab="deals">Сделки</button>
+      <button class="tab" data-tab="journal">📒 Журнал</button>
+      <button class="tab" data-tab="brain">🧬 Обучение</button>
+      <button class="tab" data-tab="clients">🤝 Клиенты</button>
+      <button class="tab" data-tab="autobuy">💳 Автопокупка</button>
+    </nav>
+  </aside>
+
+  <main class="layout">
+    <section class="kpi-grid" id="kpiGrid"></section>
+
+    <!-- ADVISOR -->
+    <div class="tab-panel active" data-panel="advisor">
+      <section class="filters glass" style="grid-template-columns: 1fr 2fr;">
+        <div class="filter-group">
+          <label>Мой бюджет: <b id="advBudgetVal">2 000₽</b></label>
+          <input type="range" id="advBudget" min="500" max="50000" step="500" value="2000" />
+        </div>
+        <div class="filter-group">
+          <label>Что сделает советник</label>
+          <span class="hint">Подберёт доступные позиции, построит стратегию раскрутки с реинвестом и выдаст точные шаги: где купить, у кого и где продать. Пересчёт — при отпускании бегунка.</span>
+        </div>
+      </section>
+
+      <section class="card glass advisor-hero" id="advisorHero"></section>
+
+      <section id="advisorSteps"></section>
+
+      <section class="card glass">
+        <div class="card-head"><h3>📈 План раскрутки (реинвест) <span class="count-pill" id="growthCount">0</span></h3></div>
+        <div class="table-wrap">
+          <table id="growthTable">
+            <thead><tr>
+              <th class="num">Раунд</th><th>Позиция</th><th class="num">Капитал старт</th>
+              <th class="num">Шт.</th><th class="num">Вложить</th><th class="num">Ожид. прирост</th>
+              <th class="num">Капитал итог</th><th class="num">Дней</th><th class="num">Всего дней</th>
+            </tr></thead>
+            <tbody id="growthTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card glass">
+        <div class="card-head"><h3>🎯 Лучшие позиции в твой бюджет <span class="count-pill" id="picksCount">0</span></h3>
+          <span class="chip">Купил / Продал → журнал + обучение ИИ</span></div>
+        <div id="picksList" class="picks-list"></div>
+      </section>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div class="tab-panel" data-panel="overview">
+      <section class="charts-grid">
+        <div class="card glass wide"><div class="card-head"><h3>Прибыль по играм</h3><span class="chip">₽ нетто</span></div><canvas id="chartByGame"></canvas></div>
+        <div class="card glass"><div class="card-head"><h3>Уверенность</h3></div><canvas id="chartConfidence"></canvas></div>
+        <div class="card glass"><div class="card-head"><h3>Ликвидность</h3></div><canvas id="chartLiquidity"></canvas></div>
+        <div class="card glass wide"><div class="card-head"><h3>Прибыль × Дни до продажи</h3><span class="chip">пузырьки</span></div><canvas id="chartScatter"></canvas></div>
+        <div class="card glass wide"><div class="card-head"><h3>Распределение прибыли</h3></div><canvas id="chartProfitDist"></canvas></div>
+      </section>
+    </div>
+
+    <!-- RISK -->
+    <div class="tab-panel" data-panel="risk">
+      <section class="charts-grid">
+        <div class="card glass wide"><div class="card-head"><h3>Риск × Доходность</h3><span class="chip">размер = EV</span></div><canvas id="chartRiskReward"></canvas></div>
+        <div class="card glass"><div class="card-head"><h3>Уровни риска</h3></div><canvas id="chartRiskDist"></canvas></div>
+        <div class="card glass"><div class="card-head"><h3>Куда уходят деньги</h3><span class="chip">все сделки</span></div><canvas id="chartFees"></canvas></div>
+        <div class="card glass wide"><div class="card-head"><h3>Матрица риска</h3></div>
+          <div id="riskMatrix" class="risk-matrix"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- MARKET -->
+    <div class="tab-panel" data-panel="market">
+      <section class="charts-grid">
+        <div class="card glass wide"><div class="card-head"><h3>Индекс конкуренции по играм</h3><span class="chip">&gt;1 = перенасыщение</span></div><canvas id="chartCompetition"></canvas></div>
+        <div class="card glass"><div class="card-head"><h3>Здоровье рынка</h3></div><canvas id="chartHealth"></canvas></div>
+      </section>
+      <section class="card glass">
+        <div class="card-head"><h3>Рыночная сводка по играм</h3><span class="chip">цены без выбросов · IQR</span></div>
+        <div class="table-wrap">
+          <table id="marketTable">
+            <thead><tr>
+              <th>Игра</th><th>Здоровье</th><th class="num">Сделок</th>
+              <th class="num">Медиана закуп</th><th class="num">Опт. продажа</th>
+              <th class="num">Сегмент p25–p75</th><th class="num">Выбросы</th>
+              <th class="num">Ср. маржа</th><th class="num">Ср. риск</th>
+              <th class="num">Ср. дни</th><th class="num">Конкуренция</th>
+            </tr></thead>
+            <tbody id="marketTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- STRATEGIES -->
+    <div class="tab-panel" data-panel="strategies">
+      <section class="strategy-cards" id="strategyCards"></section>
+      <section class="charts-grid">
+        <div class="card glass wide"><div class="card-head"><h3>Expected Value по стратегиям</h3><span class="chip">₽</span></div><canvas id="chartStrategyEV"></canvas></div>
+        <div class="card glass"><div class="card-head"><h3>Доля сделок</h3></div><canvas id="chartStrategyShare"></canvas></div>
+      </section>
+    </div>
+
+    <!-- PORTFOLIO -->
+    <div class="tab-panel" data-panel="portfolio">
+      <section class="filters glass" style="grid-template-columns: 1fr 2fr auto;">
+        <div class="filter-group">
+          <label>Бюджет: <b id="budgetVal">20 000₽</b></label>
+          <input type="range" id="budgetInput" min="2000" max="100000" step="1000" value="20000" />
+        </div>
+        <div class="filter-group">
+          <label>Как формируется портфель</label>
+          <span class="hint">Жадно по эффективности EV/₽/день · лимит 25% на сделку · макс. 3 сделки на игру · риск ≤ 55</span>
+        </div>
+        <div class="filter-group" style="justify-content:flex-end;">
+          <button class="btn-refresh" id="rebuildBtn">Собрать портфель</button>
+        </div>
+      </section>
+      <section class="kpi-grid" id="portfolioKpi" style="margin-top:18px;"></section>
+      <section class="card glass">
+        <div class="card-head"><h3>Рекомендованный портфель <span class="count-pill" id="pfCount">0</span></h3></div>
+        <div class="table-wrap">
+          <table id="portfolioTable">
+            <thead><tr>
+              <th>Игра</th><th>Лот</th><th>Маршрут</th><th>Стратегии</th>
+              <th class="num">Вложить</th><th class="num">Прибыль</th>
+              <th class="num">EV</th><th class="num">Риск</th><th class="num">Дни</th>
+            </tr></thead>
+            <tbody id="portfolioTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- DEALS -->
+    <div class="tab-panel" data-panel="deals">
+      <section class="filters glass">
+        <div class="filter-group"><label>Игра</label><div class="select-wrap"><select id="filterGame"><option value="all">Все игры</option></select></div></div>
+        <div class="filter-group"><label>Уверенность</label><div class="select-wrap"><select id="filterConfidence"><option value="all">Любая</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></div></div>
+        <div class="filter-group"><label>Риск</label><div class="select-wrap"><select id="filterRisk"><option value="all">Любой</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div></div>
+        <div class="filter-group"><label>Ликвидность</label><div class="select-wrap"><select id="filterLiquidity"><option value="all">Любая</option><option value="fast">🟢 Fast</option><option value="medium">🔵 Medium</option><option value="slow">🟠 Slow</option><option value="dead">🧊 Dead</option></select></div></div>
+        <div class="filter-group"><label>Стратегия</label><div class="select-wrap"><select id="filterStrategy"><option value="all">Любая</option><option value="fast_flip">⚡ Быстрый флип</option><option value="high_margin">📈 Высокая маржа</option><option value="volume">🔁 Объём</option><option value="premium">💎 Премиум</option><option value="safe">🛡 Безопасная</option><option value="value">🎯 По EV</option></select></div></div>
+        <div class="filter-group"><label>Продажа на</label><div class="select-wrap"><select id="filterPlatform"><option value="all">Все</option><option value="funpay">FunPay</option><option value="playerok">PlayerOK</option><option value="lolz">Lolz</option></select></div></div>
+        <div class="filter-group"><label>Мин. прибыль: <b id="minProfitVal">0₽</b></label><input type="range" id="filterMinProfit" min="0" max="1500" step="50" value="0" /></div>
+        <div class="filter-group"><label>Макс. риск: <b id="maxRiskVal">100</b></label><input type="range" id="filterMaxRisk" min="0" max="100" step="5" value="100" /></div>
+        <div class="filter-group"><label>Продать не дольше: <b id="maxDaysVal">∞</b></label><input type="range" id="filterMaxDays" min="0" max="45" step="1" value="0" /></div>
+        <div class="filter-group"><label>Сортировка</label><div class="select-wrap"><select id="filterSort">
+          <option value="expected_value_rub">По Expected Value ⭐</option>
+          <option value="net_profit_rub">По прибыли</option>
+          <option value="daily_profit">По прибыли/день ⚡</option>
+          <option value="annualized_roi">По годовой доходности</option>
+          <option value="risk_score">По риску (мин)</option>
+          <option value="est_days_to_sell">По скорости продажи</option>
+          <option value="margin_percent">По марже</option>
+          <option value="success_probability">По шансу успеха</option>
+        </select></div></div>
+      </section>
+      <section class="card glass">
+        <div class="card-head"><h3>Сделки <span class="count-pill" id="rowCount">0</span></h3></div>
+        <div class="table-wrap">
+          <table id="oppTable">
+            <thead><tr>
+              <th>Риск</th><th>Ликвид.</th><th>Игра</th><th>Лот</th><th>Маршрут</th>
+              <th class="num">Купить</th><th class="num">Продать</th>              <th class="num">Комиссии</th>
+              <th class="num">На карту</th><th class="num">EV</th><th class="num">Успех</th>
+              <th class="num">₽/день</th><th class="num">Год.%</th><th>Стратегии</th><th></th>
+            </tr></thead>
+            <tbody id="oppTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- JOURNAL: реальные покупки / продажи -->
+    <div class="tab-panel" data-panel="journal">
+      <section class="filters glass" style="grid-template-columns: 2fr auto auto;">
+        <div class="filter-group">
+          <label>Журнал позиций</label>
+          <span class="hint">Отмечай купленное → фиксируй продажу. ИИ учится на реальном PnL и перестраивает стратегии и прогноз дохода.</span>
+        </div>
+        <div class="filter-group" style="justify-content:flex-end;">
+          <button class="btn-refresh" id="journalRefreshBtn">Обновить</button>
+        </div>
+        <div class="filter-group" style="justify-content:flex-end;">
+          <button class="btn-refresh" id="journalManualBuyBtn">➕ Купил вручную</button>
+        </div>
+      </section>
+
+      <section class="kpi-grid" id="journalKpi"></section>
+
+      <section class="card glass">
+        <div class="card-head"><h3>📂 Открытые позиции <span class="count-pill" id="journalOpenCount">0</span></h3>
+          <span class="chip" id="journalForecastChip">прогноз —</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Лот</th><th>Игра</th><th class="num">Закуп</th><th class="num">Ожид. прибыль</th>
+              <th class="num">Прогноз ИИ</th><th>Куплено</th><th></th>
+            </tr></thead>
+            <tbody id="journalOpenBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card glass">
+        <div class="card-head"><h3>✅ Закрытые <span class="count-pill" id="journalClosedCount">0</span></h3>
+          <span class="chip">реальный PnL → обучение</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Статус</th><th>Лот</th><th class="num">Закуп</th><th class="num">Продажа</th>
+              <th class="num">PnL</th><th class="num">ROI</th><th>Когда</th>
+            </tr></thead>
+            <tbody id="journalClosedBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- BRAIN / SELF-LEARNING -->
+    <div class="tab-panel" data-panel="brain">
+      <section class="filters glass" style="grid-template-columns: 2fr auto auto auto;">
+        <div class="filter-group">
+          <label>Саморазвивающийся движок</label>
+          <span class="hint">Учится на сканах и реальном журнале, сам дописывает блоки стратегий (плагины) и авто-настраивает пороги.</span>
+        </div>
+        <div class="filter-group" style="justify-content:flex-end;">
+          <button class="btn-refresh" id="brainTrainBtn">⚡ Прокачать на данных</button>
+        </div>
+        <div class="filter-group" style="justify-content:flex-end;">
+          <button class="btn-refresh" id="brainEvolveBtn">🧬 Эволюция</button>
+        </div>
+        <div class="filter-group" style="justify-content:flex-end;">
+          <button class="btn-refresh" id="brainImproveBtn">🛠 Самоулучшение</button>
+        </div>
+      </section>
+
+      <section class="kpi-grid" id="brainKpi"></section>
+
+      <section class="charts-grid">
+        <div class="card glass wide"><div class="card-head"><h3>Кривая обучения</h3><span class="chip">сглажено · отобранные ИИ vs все</span></div><canvas id="chartBrainCurve"></canvas></div>
+        <div class="card glass">
+          <div class="card-head"><h3>⚙️ Авто-настройки</h3><span class="chip">в безопасных границах</span></div>
+          <div id="brainTuning" class="tuning-list"></div>
+        </div>
+      </section>
+
+      <section class="card glass">
+        <div class="card-head"><h3>🛠 Блоки стратегий (самодописывание) <span class="count-pill" id="brainPluginCount">0</span></h3>
+          <span class="chip">бэктест → активация</span></div>
+        <div id="brainPlugins" class="insight-list"></div>
+      </section>
+
+      <section class="card glass">
+        <div class="card-head"><h3>🧬 Найденные стратегии <span class="count-pill" id="brainStratCount">0</span></h3><span class="chip">маржа/риск/срок → реальная доходность</span></div>
+        <div class="table-wrap">
+          <table id="brainStratTable">
+            <thead><tr>
+              <th>Правило</th><th class="num">Наблюдений</th><th class="num">Ср. прибыль</th>
+              <th class="num">Win-rate</th><th class="num">Уверенность</th><th class="num">Скор</th>
+            </tr></thead>
+            <tbody id="brainStratBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="charts-grid">
+        <div class="card glass"><div class="card-head"><h3>🎓 Навыки (инсайты)</h3></div><div id="brainSkills" class="insight-list"></div></div>
+        <div class="card glass"><div class="card-head"><h3>💡 Приёмы заработка</h3></div><div id="brainTricks" class="insight-list"></div></div>
+      </section>
+    </div>
+
+    <!-- CLIENTS -->
+    <div class="tab-panel" data-panel="clients">
+      <section class="filters glass" style="grid-template-columns: 2fr auto;">
+        <div class="filter-group">
+          <label>Клиенты и персональные предложения</label>
+          <span class="hint">Клиент — тот, кто у вас уже покупал. Чем больше покупок, тем клиент ценнее. База наполняется только реальными продажами — черновики офферов готовятся автоматически (без авто-рассылки, в рамках правил площадок).</span>
+        </div>
+        <div class="filter-group" style="justify-content:flex-end;">
+          <button class="btn-refresh" id="clientsRefreshBtn">Обновить</button>
+        </div>
+      </section>
+
+      <section class="kpi-grid" id="clientsKpi"></section>
+
+      <section class="card glass">
+        <div class="card-head"><h3>➕ Добавить продажу</h3><span class="chip">так наполняется база клиентов</span></div>
+        <div class="sale-form">
+          <input id="saleNick" placeholder="Ник покупателя" />
+          <input id="saleGame" placeholder="Игра (необязательно)" />
+          <input id="salePlatform" placeholder="Площадка" value="funpay" />
+          <input id="salePrice" type="number" placeholder="Сумма продажи ₽" />
+          <input id="saleProfit" type="number" placeholder="Прибыль ₽ (необяз.)" />
+          <button class="btn-mini primary" id="saleAddBtn">Записать продажу</button>
+          <button class="btn-mini" id="clientsImportBtn" title="Импорт CSV: nick,game,price,purchases">Импорт CSV</button>
+        </div>
+        <div id="saleMsg" class="sale-msg"></div>
+      </section>
+
+      <section class="card glass">
+        <div class="card-head"><h3>🎁 Предложения активным клиентам <span class="count-pill" id="offersCount">0</span></h3><span class="chip" id="offersMode">черновики</span></div>
+        <div id="offersList" class="offers-list"></div>
+      </section>
+
+      <section class="card glass">
+        <div class="card-head"><h3>👥 Клиентская база</h3></div>
+        <div class="table-wrap">
+          <table id="clientsTable">
+            <thead><tr>
+              <th>Клиент</th><th>Сегмент</th><th class="num">Покупок</th>
+              <th>Интересы</th><th class="num">Ср. чек</th><th class="num">Всего ₽</th><th class="num">Ценность</th><th class="num">Был</th>
+            </tr></thead>
+            <tbody id="clientsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- AUTOBUY -->
+    <div class="tab-panel" data-panel="autobuy">
+      <section class="card glass autobuy-hero" id="autobuyHero"></section>
+      <section class="filters glass autobuy-filters" id="autobuyFilters"></section>
+      <section class="card glass">
+        <div class="card-head"><h3>⏳ Отложенные покупки <span class="count-pill" id="abQueueCount">0</span>
+          <button class="chip-btn" id="abProcessBtn">Докупить сейчас</button></div>
+        <div class="table-wrap">
+          <table id="abQueueTable">
+            <thead><tr>
+              <th>Лот</th><th>Игра</th><th class="num">Сумма</th><th class="num">Прибыль</th>
+              <th>Причина</th><th></th>
+            </tr></thead>
+            <tbody id="abQueueBody"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="card glass">
+        <div class="card-head"><h3>История автопокупок <span class="count-pill" id="abHistoryCount">0</span></h3></div>
+        <div class="table-wrap">
+          <table id="abHistoryTable">
+            <thead><tr>
+              <th>Время</th><th>Статус</th><th>Лот</th><th class="num">Цена</th>
+              <th class="num">Прибыль</th><th>Действие</th>
+            </tr></thead>
+            <tbody id="abHistoryBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <footer class="foot"><span>Данные обновляются каждые 15 мин. Автопокупка: Lolz API + баланс на площадке. FunPay и PlayerOK — продажа вручную.</span></footer>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

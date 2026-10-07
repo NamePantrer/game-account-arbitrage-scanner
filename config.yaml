@@ -1,0 +1,220 @@
+# Комиссии площадок (обновляй под актуальные тарифы)
+# buy_fee       — комиссия при покупке (обычно 0 для покупателя)
+# sell_fee      — комиссия площадки с продажи
+# payout_fee    — комиссия при выводе средств на карту/кошелёк
+# payout_fixed  — фикс. сбор за вывод (руб)
+# deposit_fee   — комиссия при пополнении баланса (если есть)
+platforms:
+  funpay:
+    name: FunPay
+    buy_fee_percent: 0
+    sell_fee_percent: 5      # ~3-10% в зависимости от категории/оборота
+    payout_fee_percent: 3    # вывод на карту
+    payout_fixed_rub: 0
+    deposit_fee_percent: 0
+    currency: RUB
+    base_url: https://funpay.com
+
+  playerok:
+    name: PlayerOK
+    buy_fee_percent: 0
+    sell_fee_percent: 10
+    payout_fee_percent: 4
+    payout_fixed_rub: 0
+    deposit_fee_percent: 0
+    currency: RUB
+    base_url: https://playerok.com
+
+  lolz:
+    name: Lolz Market
+    buy_fee_percent: 0
+    sell_fee_percent: 3
+    payout_fee_percent: 2
+    payout_fixed_rub: 0
+    deposit_fee_percent: 0
+    currency: RUB
+    base_url: https://lzt.market
+    api_url: https://prod-api.lzt.market
+
+# Глобальные настройки комиссий для кросс-площадочного арбитража
+fees:
+  cross_platform_transfer_rub: 0
+  include_deposit_fee: false
+  include_yookassa_fees: false   # вывод вручную — без YooKassa в расчётах
+
+# Робастный анализ цен (фильтрация выбросов)
+pricing:
+  outlier_iqr_multiplier: 1.5      # Tukey fence: Q1 ± k*IQR
+  min_samples_for_filter: 5       # мин. лотов для фильтрации
+  optimal_buy_percentile: 0.25      # целевая закупка — нижний квартиль сегмента
+  optimal_sell_percentile: 0.35     # консервативная продажа (ниже медианы — меньше «бафнутых» цен)
+
+# Саморазвивающийся движок: обучение на своих результатах и авто-настройка
+learning:
+  enabled: true
+  evolve_every_scans: 8          # каждые N сканов — доработка стратегий (не с нуля)
+  min_samples_to_learn: 40        # мин. накопленных наблюдений перед выводами
+  history_limit: 2500             # сколько наблюдений хранить (rolling)
+  evolve_sample_limit: 1500       # подвыборка для эволюции (статистика та же, CPU ↓)
+  async_evolve: true              # эволюция в фоне — не блокирует скан
+  auto_apply_tuning: true         # применять авто-подобранные параметры к сканеру
+  evolve_on_real_trade: true      # эволюция сразу после записи реальной продажи
+  auto_activate_plugins: true     # авто-активировать блоки стратегий с uplift ≥ порога
+  plugin_min_uplift: 30           # мин. прирост ср. прибыли (₽) для активации плагина
+  # Память: журнал сделок + knowledge.json переживают перезапуск.
+  # Эволюция мержит старые стратегии (EMA), а не пересобирает с нуля.
+  # безопасные границы для авто-настройки (мозг не выйдет за них)
+  bounds:
+    min_margin_percent: [5.0, 25.0]
+    optimal_sell_percentile: [0.30, 0.45]
+    max_risk_score: [35.0, 70.0]
+  # анализ клиентов и персональные скидки (черновики, не авто-спам)
+  clients:
+    enabled: true
+    active_min_deals: 2           # сколько сделок делает клиента «активным»
+    max_discount_percent: 12      # потолок скидки, которую движок предложит
+    auto_send: false              # ВЫКЛ по умолчанию — только черновики (ToS площадок)
+    daily_offer_limit: 20         # антиспам-лимит на исходящие предложения в день
+  # сигналы спроса из интернета/статистики площадок
+  web_intel:
+    enabled: true
+    source: offline               # offline | live (live требует своих коннекторов)
+    trend_weight: 0.35            # насколько тренд корректирует demand_per_day
+
+# Категории для мониторинга (game + category slug)
+# Добавляй свои — это стартовый набор
+watch_categories:
+  # FunPay: реальные разделы «аккаунты», не пополнение валюты.
+  # Steam аккаунты = /lots/89/ (1086 = пополнение, не аккаунты)
+  - game: steam
+    category: accounts
+    funpay_lot_path: /lots/89/
+    lolz_category: steam
+    playerok_category_url: https://playerok.com/games/steam
+
+  - game: brawl-stars
+    category: accounts
+    funpay_lot_path: /lots/436/
+    lolz_category: supercell
+    playerok_category_url: https://playerok.com/games/brawl-stars
+
+  - game: genshin-impact
+    category: accounts
+    funpay_lot_path: /lots/696/
+    lolz_category: mihoyo
+    playerok_category_url: https://playerok.com/games/genshin-impact
+
+  - game: valorant
+    category: accounts
+    funpay_lot_path: /lots/612/
+    lolz_category: riot
+    playerok_category_url: https://playerok.com/games/valorant
+
+  - game: telegram
+    category: accounts
+    # FunPay /lots/702 = каналы; Lolz = аккаунты — сегменты разные, кросс-матча не будет
+    funpay_lot_path: /lots/702/
+    funpay_segment: tg_channel
+    lolz_category: telegram
+    lolz_segment: tg_account
+    playerok_category_url: https://playerok.com/games/telegram
+
+# Только перепродаваемые товары (аккаунты/ключи), без услуг продавца
+listing_filter:
+  goods_only: true
+  require_goods_for_accounts: true
+  reject_currency_topups: true
+  # доп. стоп-слова (подстрока в названии)
+  reject_keywords:
+    - буст кубков
+    - буст рангов
+    - trophy boost
+    - rank boost
+    - выполню квест
+    - прокачаю
+    - накрутка
+    - донат на ваш
+    - заход на аккаунт
+    - зайду на акк
+    - кристаллов
+    - при первом пополнении
+    - x2 при первом
+    - услуга
+    - фарм
+    - farm
+    - прохождение бездны
+    - вы даёте данные
+    - выдаёте данные
+    - промокод
+
+# Фильтры безопасности для Lolz
+lolz_allowed_origins:
+  - personal
+  - autoreg
+  - resale
+  - self_registration
+
+# Исключить подозрительные источники аккаунтов
+lolz_blocked_origins:
+  - brute
+  - phishing
+  - stealer
+  - retrieve_via_support
+
+# Оценка спроса для расчёта ликвидности (примерно продаж в день по игре).
+# Настрой под реальность: чем выше — тем быстрее продаётся лот.
+liquidity:
+  default_demand_per_day: 0.4   # для игр без явной оценки
+  min_liquidity_score: 40       # ниже — помечаем как рискованно неликвидные
+  demand_per_day:
+    brawl-stars: 3.5
+    genshin-impact: 1.5
+    steam: 2.5
+    albion-online: 0.8
+    pubg-mobile: 2.0
+    clash-royale: 1.2
+    valorant: 1.8
+
+# Риск-модель: вероятность провала сделки и потери капитала
+risk:
+  loss_given_failure: 0.6        # какую долю вложений теряешь при провале сделки
+  anomaly_spread_percent: 60     # спред выше этого = подозрительно (скам/ошибка)
+  # Вероятность проблемы (откат/бан/скам) по источнику аккаунта на Lolz
+  origin_fail_prob:
+    personal: 0.02
+    self_registration: 0.03
+    autoreg: 0.05
+    resale: 0.10
+    unknown: 0.15
+    retrieve_via_support: 0.35
+    brute: 0.50
+    stealer: 0.60
+    phishing: 0.60
+
+# Пороги торговых стратегий
+strategies:
+  fast_flip_max_days: 5
+  high_margin_min_percent: 30
+  volume_max_price: 800
+  premium_min_profit: 800
+  safe_max_risk: 25
+
+# Управление капиталом для распределения бюджета
+portfolio:
+  default_budget_rub: 20000
+  max_share_per_deal: 0.25       # не больше 25% бюджета в одну сделку
+  max_risk_score: 55             # сделки рискованнее не берём в портфель
+
+# Автопокупка (только Lolz API + баланс на площадке; пополнение вручную)
+autobuy:
+  enabled: false
+  dry_run: true                  # true = только лог, без реальных покупок
+  max_per_deal_rub: 5000
+  max_daily_rub: 20000
+  min_profit_rub: 100
+  min_ev_rub: 50
+  max_risk_score: 40
+  max_deals_per_scan: 1
+  topup_buffer_rub: 50
+  allowed_buy_platforms:
+    - lolz
