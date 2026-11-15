@@ -1,69 +1,65 @@
 # game-account-arbitrage-scanner
 
-Учебный сканер арбитража игровых аккаунтов между FunPay, PlayerOK и Lolz Market на Python.
-Собирает публичные лоты с трёх площадок, сопоставляет похожие, считает чистую прибыль с учётом
-комиссий, оценивает риск и ликвидность. Результат выводится в веб-дашборд на FastAPI.
+Cross-marketplace scanner for public game-account listings (FunPay, PlayerOK, Lolz Market).
 
-Токены площадок задаются в `.env` (см. `.env.example`), в репозиторий они не попадают.
+Учебный сканер арбитража игровых аккаунтов. Собирает публичные лоты с FunPay, PlayerOK и Lolz Market, сопоставляет похожие, считает чистую прибыль с комиссиями и показывает результат в консоли и веб-дашборде.
 
-## Состав
+**Автор:** Пётр Калинкин, студент Университета ИТМО (информационная безопасность).
 
-| Путь | Назначение |
+Проект считает спред между площадками. Он не проверяет юридическую чистоту конкретного лота и не гарантирует, что сделка закроется с расчётной прибылью.
+
+## Что делает
+
+1. Парсеры забирают лоты из категорий в `config.yaml` (сейчас: Steam, Brawl Stars, Genshin Impact, Valorant, Telegram).
+2. Фильтр оставляет перепродаваемые товары и отсекает услуги, буст и пополнение валюты.
+3. Движок ищет пары между площадками (RapidFuzz), считает комиссии, маржу, ликвидность, риск и expected value.
+4. Сделки выше `MIN_PROFIT_RUB` и `MIN_MARGIN_PERCENT` печатаются в консоль и сохраняются в `data/scan_*.json`.
+5. FastAPI отдаёт тот же результат в дашборд: советник, обзор, риски, рынок, стратегии, портфель, сделки, журнал, обучение, клиенты, автопокупка.
+
+Если живых лотов нет, дашборд показывает оффлайн-выборку из `src/sample_data.py` — те же формулы прибыли, но синтетические названия. Это не результат реального скана.
+
+Пример расчёта, не снимок рынка: лот на Lolz за 500 ₽ и похожий лот на FunPay за 800 ₽. При комиссии продажи FunPay 5% на руки остаётся около 760 ₽, оценка прибыли около 260 ₽. Фактические комиссии задаются в `config.yaml`.
+
+## Стек
+
+| Слой | Технологии |
 | --- | --- |
-| `src/main.py` | Точка входа: один прогон скана, печать топ-сделок |
-| `src/scanner_service.py` | Полный цикл: сбор лотов → поиск арбитража → сохранение JSON в `data/` |
-| `src/api.py` | FastAPI-бэкенд для веб-дашборда |
-| `src/config.py` | Загрузка `.env` (pydantic-settings) и `config.yaml`, слой самонастройки |
-| `src/models.py` | Модели данных: `Listing`, `ArbitrageOpportunity`, `Platform` |
-| `src/check_auth.py` | Проверка доступов к площадкам (`python -m src.check_auth`) |
-| `src/sample_data.py` | Оффлайн-выборка для интерфейса без API-токенов |
-| `src/parsers/funpay.py` | Парсер публичных лотов FunPay (без логина) |
-| `src/parsers/playerok.py` | Парсер PlayerOK через GraphQL (нужен cookie-token) |
-| `src/parsers/lolz.py` | Клиент Lolz Market API |
-| `src/parsers/base.py` | Общий интерфейс парсеров |
-| `src/engine/scanner.py` | Поиск арбитража между всеми парами площадок |
-| `src/engine/matcher.py` | Сопоставление похожих лотов (fuzzy matching) |
-| `src/engine/profit.py` | Расчёт чистой прибыли и маржи сделки |
-| `src/engine/fees.py` | Модель комиссий: покупка, продажа, вывод |
-| `src/engine/liquidity.py` | Оценка ликвидности: как быстро продастся лот |
-| `src/engine/risk.py` | Риск-скоринг, вероятность провала, Expected Value |
-| `src/engine/market.py` | Рыночная аналитика по категориям, аномалии цен |
-| `src/engine/pricing.py` | Анализ цен с фильтрацией выбросов |
-| `src/engine/strategies.py` | Теги торговых стратегий и распределение бюджета |
-| `src/engine/listing_filter.py` | Фильтр товары/услуги и сегментация лотов |
-| `src/engine/scheduler.py` | Фоновый авто-скан каждые N минут |
-| `src/engine/autobuy.py` | Автопокупка выгодных лотов на Lolz (по умолчанию выключена) |
-| `src/engine/brain.py`, `self_improve.py`, `advisor.py` | Эксперименты с самонастройкой параметров на истории сканов |
-| `src/engine/clients.py`, `journal.py`, `web_intel.py` | Клиенты/скидки (черновики), журнал сделок, сигналы спроса |
-| `src/payments/lolz_buyer.py` | Покупка лотов через официальный Lolz API |
-| `web/` | Статика дашборда (`index.html`, `app.js`, `style.css`) |
-| `config.yaml` | Категории мониторинга, комиссии, фильтры, пороги стратегий |
-| `.env.example` | Шаблон переменных окружения (токены — пустые) |
-| `requirements.txt` | Зависимости Python |
+| Язык | Python 3.11+ |
+| API и сервер | FastAPI, Uvicorn, python-multipart |
+| Модели и конфиг | Pydantic, pydantic-settings, PyYAML, python-dotenv |
+| FunPay | `requests`, BeautifulSoup, lxml — публичный HTML `/lots/` |
+| PlayerOK | `curl_cffi`, GraphQL `playerok.com/graphql` |
+| Lolz Market | официальный HTTP API `prod-api.lzt.market` |
+| Сопоставление | RapidFuzz |
+| Интерфейс | статика в `web/` (HTML, CSS, JS) и Chart.js 4 с CDN |
 
-## Требования
-
-- Python 3.11+
-- Доступ в интернет к площадкам
-- Токен Lolz Market API (для скана Lolz и автопокупки)
-- Опционально cookie `golden_key` FunPay и cookie `token` PlayerOK (см. ниже)
+В `requirements.txt` также указаны `aiohttp` и `schedule`. Текущий код их не импортирует: фоновый скан крутится на `threading`.
 
 ## Установка
+
+Нужны Python 3.11+ и сеть до площадок.
 
 ```bash
 cd game-account-arbitrage-scanner
 python -m venv .venv
-# Windows: .venv\Scripts\activate
 # Linux/macOS: source .venv/bin/activate
+# Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env   # Windows: copy .env.example .env
 ```
 
-Токены в `.env`:
+Токены только в локальном `.env`. Файл в git не попадает (см. `.gitignore`).
 
-- `LZT_API_TOKEN` — на [lzt.market](https://lzt.market) → Настройки → API → scope `market`.
-- `FUNPAY_GOLDEN_KEY` — cookie `golden_key` с funpay.com (для кабинета; скан публичных лотов работает и без него).
-- `PLAYEROK_TOKEN` — cookie `token` (JWT) с `.playerok.com` (без него GraphQL PlayerOK недоступен).
+| Переменная | Зачем |
+| --- | --- |
+| `LZT_API_TOKEN` | Lolz Market → Настройки → API, scope `market`. Без него лоты Lolz не читаются. |
+| `FUNPAY_GOLDEN_KEY` | Свой cookie `golden_key` с funpay.com. Для публичного скана лотов не нужен; нужен для проверки кабинета. |
+| `PLAYEROK_TOKEN` | Свой cookie `token` с `.playerok.com`. Без него GraphQL PlayerOK недоступен. |
+| `PLAYEROK_DDG5`, `PLAYEROK_COOKIES` | Дополнительные cookie, если площадка отдала проверку. Пустые значения допустимы. |
+| `AUTOBUY_ENABLED`, `AUTOBUY_DRY_RUN` | По умолчанию `false` и `true`: покупок нет. |
+| `MIN_PROFIT_RUB`, `MIN_MARGIN_PERCENT` | Пороги сделки. В шаблоне 50 ₽ и 8%. |
+| `SCAN_INTERVAL_MINUTES` | Интервал фонового скана дашборда. В шаблоне 15 минут. |
+| `DASHBOARD_TOKEN` | Необязательный PIN. Если задан, дашборд открывается через `/login`. |
 
 Проверка доступов:
 
@@ -73,46 +69,72 @@ python -m src.check_auth
 
 ## Запуск
 
-Разовый скан из консоли:
+Один прогон и топ сделок в консоли:
 
 ```bash
 python -m src.main
 ```
 
-Веб-дашборд:
+Дашборд (при старте поднимает фоновый скан и наблюдатель автопокупки):
 
 ```bash
 python -m uvicorn src.api:app --port 8778
 ```
 
-Пример: лот на Lolz стоит 500 ₽, похожий лот на FunPay — 800 ₽. После комиссии FunPay ~5%
-продавец получает ~760 ₽, прибыль ~260 ₽. Сканер собирает лоты, сопоставляет их, считает прибыль
-с комиссиями и отбрасывает сделки ниже `MIN_PROFIT_RUB` и `MIN_MARGIN_PERCENT`.
-
-## Ограничения
-
-- Прибыль не гарантирована: реальные спреды 5–15%, а не 50%.
-- Легальность аккаунта не проверяется. В `config.yaml` заданы разрешённые источники Lolz
-  (`personal`, `autoreg`, `resale`), источники `stealer`/`phishing`/`brute` заблокированы.
-- Выдачи товара на FunPay и полуавтомата «купить/выставить» пока нет, они в roadmap.
-- Автопокупка по умолчанию выключена (`autobuy.enabled: false`, `dry_run: true`).
-- Токены хранятся только в локальном `.env`, не в коде.
+Открыть `http://127.0.0.1:8778`. Пока сканов нет, интерфейс живёт на оффлайн-выборке.
 
 ## Структура
 
 ```
 game-account-arbitrage-scanner/
-├── config.yaml        # категории, комиссии, фильтры, пороги
-├── .env.example       # шаблон токенов (.env не коммитится)
+├── config.yaml              # категории, комиссии, фильтры, пороги
+├── .env.example             # шаблон переменных, токены пустые
 ├── requirements.txt
 ├── src/
-│   ├── main.py            # точка входа (one-shot скан)
-│   ├── scanner_service.py # полный цикл скана
-│   ├── api.py             # FastAPI-дашборд
-│   ├── config.py, models.py
-│   ├── parsers/           # funpay, lolz, playerok
-│   ├── engine/            # matcher, profit, fees, risk, market, ...
-│   └── payments/          # lolz_buyer
-├── web/               # index.html, app.js, style.css
-└── data/              # результаты сканов (создаётся на лету, в git не хранится)
+│   ├── main.py              # разовый скан
+│   ├── scanner_service.py   # сбор лотов → арбитраж → JSON в data/
+│   ├── api.py               # FastAPI-дашборд
+│   ├── config.py            # .env и config.yaml
+│   ├── models.py            # Listing, ArbitrageOpportunity, Platform
+│   ├── check_auth.py        # проверка доступов к площадкам
+│   ├── sample_data.py       # оффлайн-выборка для интерфейса
+│   ├── parsers/             # funpay, lolz, playerok
+│   ├── engine/              # matcher, profit, fees, risk, market, scheduler, ...
+│   └── payments/            # покупка на Lolz через официальный API
+└── web/                     # index.html, app.js, style.css, icons/
 ```
+
+Каталог `data/` создаётся при скане (последние 30 файлов `scan_*.json`, журнал, очередь автопокупки). В git он не хранится.
+
+| Путь | Назначение |
+| --- | --- |
+| `src/engine/scanner.py` | Поиск арбитража по парам площадок |
+| `src/engine/matcher.py` | Похожесть названий |
+| `src/engine/profit.py`, `fees.py` | Чистая прибыль и комиссии покупки, продажи, вывода |
+| `src/engine/liquidity.py`, `risk.py` | Срок продажи, риск, expected value |
+| `src/engine/pricing.py`, `market.py` | Цены без выбросов (IQR), сводка по игре |
+| `src/engine/strategies.py` | Теги стратегий и распределение бюджета |
+| `src/engine/listing_filter.py` | Товары против услуг и сегмент лота |
+| `src/engine/scheduler.py` | Фон: скан каждые N минут |
+| `src/engine/autobuy.py`, `src/payments/lolz_buyer.py` | Автопокупка только на Lolz, по умолчанию выключена |
+| `src/engine/advisor.py` | План под заданный бюджет |
+| `src/engine/journal.py` | Журнал своих сделок: купил / продал / потеря |
+| `src/engine/brain.py`, `self_improve.py` | Подстройка порогов по истории сканов и журналу |
+| `src/engine/clients.py` | База своих покупателей и черновики предложений |
+| `src/engine/web_intel.py` | Поправка спроса. По умолчанию offline-эвристика, живой источник не подключён |
+
+Покупка через API есть только у Lolz. На FunPay и PlayerOK сделка остаётся ручной. Вывод денег в коде не проводится. Предложения клиентам при `auto_send: false` сохраняются как черновики: доставки в чат площадки нет.
+
+## Дисклеймер
+
+Это учебный проект и личная автоматизация своего кабинета. Он смотрит публичные лоты и, при своём токене, официальный API Lolz Market.
+
+- Чужие аккаунты, обход правил площадок и массовые рассылки в задачу кода не входят.
+- В `config.yaml` для Lolz разрешены источники `personal`, `autoreg`, `resale`, `self_registration`. Источники `stealer`, `phishing`, `brute`, `retrieve_via_support` отфильтрованы.
+- Фильтр источника не заменяет проверку конкретного лота. Прибыль на экране — оценка по комиссиям из конфига, не обещание дохода.
+- Автопокупка выключена: `autobuy.enabled: false` и `dry_run: true`. Лимиты суммы и риска лежат в том же блоке `config.yaml`.
+- Секреты остаются в `.env` на своей машине.
+
+## Лицензия
+
+Файла `LICENSE` в репозитории нет. Пока лицензия не выбрана, условия использования кода определяет автор.
